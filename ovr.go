@@ -326,6 +326,10 @@ type Hmd struct {
 }
 
 func newHmd(hmd C.ovrHmd) *Hmd {
+	if hmd == nil {
+		return nil
+	}
+
 	return &Hmd{
 		hmdRef:                     hmd,
 		Type:                       HmdType(hmd.Type),
