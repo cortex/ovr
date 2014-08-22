@@ -140,7 +140,7 @@ func TestConfigureRendering(t *testing.T) {
 	// XXX: The line below yields a panic. This might be because no window has
 	//      been created to default to.
 
-	//hmd.ConfigureRendering(&renderConfig.Config, DistortionCap_Chromatic | DistortionCap_TimeWarp | DistortionCap_Overdrive, hmd.DefaultEyeFov)
+	// hmd.ConfigureRendering(renderConfig.Config(), hmd.DistortionCaps, hmd.DefaultEyeFov)
 }
 
 func TestBeginFrame(t *testing.T) {

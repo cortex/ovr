@@ -298,7 +298,7 @@ const (
 
 type EyeType C.ovrEyeType
 
-/// This is a complete descriptor of the HMD.
+// This is a complete descriptor of the HMD.
 type Hmd struct {
 	hmdRef                     C.ovrHmd
 	Type                       HmdType
@@ -480,6 +480,14 @@ type RenderAPIConfigHeader struct {
 	Multisample int
 }
 
+func (configHeader RenderAPIConfigHeader) toC() C.ovrRenderAPIConfigHeader {
+	return C.ovrRenderAPIConfigHeader{
+		API:         C.ovrRenderAPIType(configHeader.API),
+		RTSize:      configHeader.RTSize.toC(),
+		Multisample: C.int(configHeader.Multisample),
+	}
+}
+
 type RenderAPIConfig C.ovrRenderAPIConfig
 
 type TextureHeader struct {
@@ -527,13 +535,18 @@ func newTexture(texture C.ovrTexture) Texture {
 // ******************************** [ OpenGL ] ********************************
 // ****************************************************************************
 
-/// Contains OpenGL-specific rendering information.
+// Contains OpenGL-specific rendering information. In C this is a union with
+// another structure, but here we just do the conversion with a function.
 type GLConfig struct {
-	Config RenderAPIConfig
-	OGL    GLConfigData
+	OGL GLConfigData
 }
 
-/// Used to pass GL eye texture data to ovrHmd_EndFrame.
+func (config GLConfig) Config() *RenderAPIConfig {
+	configData := config.OGL.toC()
+	return (*RenderAPIConfig)(unsafe.Pointer(&configData))
+}
+
+// Used to pass GL eye texture data to ovrHmd_EndFrame.
 type GLTextureData struct {
 	Header TextureHeader
 	TexId  C.GLuint
@@ -629,10 +642,11 @@ func (hmd *Hmd) GetFovTextureSize(eye EyeType, fov FovPort, pixelsPerDisplayPixe
 // ****************************************************************************
 
 func (hmd *Hmd) ConfigureRendering(apiConfig *RenderAPIConfig, distortionCaps uint, eyeFovIn [2]FovPort) (*[2]EyeRenderDesc, error) {
+	_apiConfig := C.ovrRenderAPIConfig(*apiConfig)
 	_eyeFovIn := [2]C.ovrFovPort{eyeFovIn[0].toC(), eyeFovIn[1].toC()}
 	eyeRenderDescOut := [2]C.ovrEyeRenderDesc{}
 
-	if C.ovrHmd_ConfigureRendering(hmd.hmdRef, (*C.ovrRenderAPIConfig)(unsafe.Pointer(apiConfig)), C.uint(distortionCaps), &_eyeFovIn[0], &eyeRenderDescOut[0]) == 0 {
+	if C.ovrHmd_ConfigureRendering(hmd.hmdRef, &_apiConfig, C.uint(distortionCaps), &_eyeFovIn[0], &eyeRenderDescOut[0]) == 0 {
 		if lastError := hmd.GetLastError(); lastError != nil {
 			return nil, errors.New(*lastError)
 		}
