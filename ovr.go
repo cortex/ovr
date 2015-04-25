@@ -6,6 +6,8 @@ package ovr
 #cgo windows CFLAGS: -DOVR_OS_WIN32 -I C:/libovr_0.4/dynamic
 #cgo windows,386 LDFLAGS: -L C:/libovr_0.4/x86 -lovr
 #cgo windows,amd64 LDFLAGS: -L C:/libovr_0.4/x64 -lovr
+#cgo CFLAGS: -I /usr/include/ovr-0.5.0.1/
+#cgo LDFLAGS: -lovr
 #include <stdlib.h>
 #include <string.h>
 #include <OVR_CAPI_GL.h>
@@ -277,14 +279,15 @@ type TrackingCaps C.ovrTrackingCaps
 
 // Distortion capability bits reported by device.
 const (
-	DistortionCap_Chromatic                  = C.ovrDistortionCap_Chromatic
-	DistortionCap_TimeWarp                   = C.ovrDistortionCap_TimeWarp
-	DistortionCap_Vignette                   = C.ovrDistortionCap_Vignette
-	DistortionCap_NoRestore                  = C.ovrDistortionCap_NoRestore
-	DistortionCap_FlipInput                  = C.ovrDistortionCap_FlipInput
-	DistortionCap_SRGB                       = C.ovrDistortionCap_SRGB
-	DistortionCap_Overdrive                  = C.ovrDistortionCap_Overdrive
-	DistortionCap_ProfileNoTimewarpSpinWaits = C.ovrDistortionCap_ProfileNoTimewarpSpinWaits
+	//	DistortionCap_Chromatic                  = C.ovrDistortionCap_Chromatic
+	DistortionCap_TimeWarp  = C.ovrDistortionCap_TimeWarp
+	DistortionCap_Vignette  = C.ovrDistortionCap_Vignette
+	DistortionCap_NoRestore = C.ovrDistortionCap_NoRestore
+	DistortionCap_FlipInput = C.ovrDistortionCap_FlipInput
+	DistortionCap_SRGB      = C.ovrDistortionCap_SRGB
+	DistortionCap_Overdrive = C.ovrDistortionCap_Overdrive
+
+//	DistortionCap_ProfileNoTimewarpSpinWaits = C.ovrDistortionCap_ProfileNoTimewarpSpinWaits
 )
 
 type DistortionCaps C.ovrDistortionCaps
@@ -439,7 +442,7 @@ type EyeRenderDesc struct {
 	Fov                       FovPort
 	DistortedViewport         Recti
 	PixelsPerTanAngleAtCenter Vector2f
-	ViewAdjust                Vector3f
+	HmdToEyeViewOffset        Vector3f
 }
 
 func (desc EyeRenderDesc) toC() C.ovrEyeRenderDesc {
@@ -448,7 +451,7 @@ func (desc EyeRenderDesc) toC() C.ovrEyeRenderDesc {
 		Fov:                       desc.Fov.toC(),
 		DistortedViewport:         desc.DistortedViewport.toC(),
 		PixelsPerTanAngleAtCenter: desc.PixelsPerTanAngleAtCenter.toC(),
-		ViewAdjust:                desc.ViewAdjust.toC(),
+		HmdToEyeViewOffset:        desc.HmdToEyeViewOffset.toC(),
 	}
 }
 
@@ -458,7 +461,7 @@ func newEyeRenderDesc(eyeRenderDesc C.ovrEyeRenderDesc) EyeRenderDesc {
 		Fov:                       newFovPort(eyeRenderDesc.Fov),
 		DistortedViewport:         newRecti(eyeRenderDesc.DistortedViewport),
 		PixelsPerTanAngleAtCenter: newVector2f(eyeRenderDesc.PixelsPerTanAngleAtCenter),
-		ViewAdjust:                newVector3f(eyeRenderDesc.ViewAdjust),
+		HmdToEyeViewOffset:        newVector3f(eyeRenderDesc.HmdToEyeViewOffset),
 	}
 }
 
@@ -475,16 +478,16 @@ const (
 type RenderAPIType C.ovrRenderAPIType
 
 type RenderAPIConfigHeader struct {
-	API         RenderAPIType
-	RTSize      Sizei
-	Multisample int
+	API            RenderAPIType
+	BackBufferSize Sizei
+	Multisample    int
 }
 
 func (configHeader RenderAPIConfigHeader) toC() C.ovrRenderAPIConfigHeader {
 	return C.ovrRenderAPIConfigHeader{
-		API:         C.ovrRenderAPIType(configHeader.API),
-		RTSize:      configHeader.RTSize.toC(),
-		Multisample: C.int(configHeader.Multisample),
+		API:            C.ovrRenderAPIType(configHeader.API),
+		BackBufferSize: configHeader.BackBufferSize.toC(),
+		Multisample:    C.int(configHeader.Multisample),
 	}
 }
 
@@ -567,7 +570,7 @@ func InitializeRenderingShim() {
 }
 
 func Initialize() bool {
-	return C.ovr_Initialize() == 1
+	return C.ovr_Initialize(nil) == 1
 }
 
 func Shutdown() {
@@ -674,7 +677,7 @@ func (hmd *Hmd) EndFrame(renderPose [2]Posef, eyeTexture [2]Texture) {
 }
 
 func (hmd *Hmd) GetEyePose(eye EyeType) Posef {
-	return newPosef(C.ovrHmd_GetEyePose(hmd.hmdRef, C.ovrEyeType(eye)))
+	return newPosef(C.ovrHmd_GetHmdPosePerEye(hmd.hmdRef, C.ovrEyeType(eye)))
 }
 
 // ****************************************************************************
@@ -740,8 +743,8 @@ func (hmd *Hmd) GetEyeTimewarpMatrices(eye EyeType, renderPose Posef) [2]Matrix4
 // *********************** [ Stateless math functions ] ***********************
 // ****************************************************************************
 
-func Matrix4f_Projection(fov FovPort, znear float32, zfar float32, rightHanded bool) Matrix4f {
-	return newMatrix4f(C.ovrMatrix4f_Projection(fov.toC(), C.float(znear), C.float(zfar), ovrBool(rightHanded)))
+func Matrix4f_Projection(fov FovPort, znear float32, zfar float32, projectionModFlags uint) Matrix4f {
+	return newMatrix4f(C.ovrMatrix4f_Projection(fov.toC(), C.float(znear), C.float(zfar), C.uint(projectionModFlags)))
 }
 
 func Matrix4f_OrthoSubProjection(projection Matrix4f, orthoScale Vector2f, orthoDistance float32, eyeViewAdjustX float32) Matrix4f {
